@@ -14,15 +14,5 @@
             "saveBeforeRun": true
             "clearTerminal": true
         }
-        {
-            "name": "Python: Run RRT",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/run_rrt.py",
-            "console": "integratedTerminal",
-            "justMyCode": true
-            "saveBeforeRun": true
-            "clearTerminal": true
-        }
     ]
 }
