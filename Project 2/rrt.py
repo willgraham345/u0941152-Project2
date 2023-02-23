@@ -212,8 +212,7 @@ class RRT(object):
             new_state = q
         else:
             # Create new node to test
-            unit_vec = (q - nn.state) / min_d
-            new_state = nn.state + self.epsilon * unit_vec
+            new_state = nn.state + self.epsilon * (q - nn.state) / min_d
         
         new_node = TreeNode(new_state, nn)
         # Check if new node is goal
