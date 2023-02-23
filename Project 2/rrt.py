@@ -32,7 +32,7 @@ class TreeNode:
 
 class RRTSearchTree:
     '''
-    Searh tree used for building an RRT
+    Search tree used for building an RRT
     '''
     def __init__(self, init):
         '''
@@ -120,6 +120,13 @@ class RRT(object):
         '''
         Build the rrt from init to goal
         Returns path to goal or None
+        Components to implement:
+        - topological space: X
+        - Boundary values: 
+        - Collision Detector:
+        - Inputs: a set U
+        - Incremental Simulator: 
+        - Metric 
         '''
         self.goal = np.array(goal)
         self.init = np.array(init)
@@ -127,11 +134,19 @@ class RRT(object):
 
         # Build tree and search
         self.T = RRTSearchTree(init)
-
-        # Sample and extend
-        raise NotImplementedError('Expand RRT tree and return plan')
-
-        return None
+        for i in range(self.K): 
+            if _DEBUG:
+                print("Iteration: ", i)
+            s_query = self.sample()
+            (status, new_node) = self.extend(self.T, s_query)
+            if _DEBUG:
+                print("Status: ", status)
+            if status == _REACHED:
+                path = self.T.get_back_path(new_node)
+                return path
+        else: 
+            print("No path found within ", self.K, " iterations")
+            return None
 
     def build_rrt_connect(self, init, goal):
         '''
@@ -175,17 +190,45 @@ class RRT(object):
         Returns a configuration of size self.n bounded in self.limits
         '''
         # Return goal with connect_prob probability
-        raise NotImplementedError('Sample a new configuration, or return goal')
-
+        if self.connect_prob > np.random.rand():
+            return self.goal
+        else:
+            return np.random.rand(self.n) * self.ranges + self.limits[:,0]
     def extend(self, T, q):
         '''
         Perform rrt extend operation.
         q - new configuration to extend towards
         returns - tuple of (status, TreeNode)
            status can be: _TRAPPED, _ADVANCED or _REACHED
+        variables:
+        - nearest node: nn
+        - distance to nearest node: min_d
+        - RRT tree instance: T
         '''
-        raise NotImplementedError('Extend the tree towards q')
+        # Find nearest node
+        nn, min_d = T.find_nearest(q)
+        # Check to see if epsilon is too large
+        if min_d < self.epsilon:
+            new_state = q
+        else:
+            # Create new node to test
+            unit_vec = (q - nn.state) / min_d
+            new_state = nn.state + self.epsilon * unit_vec
+        
+        new_node = TreeNode(new_state, nn)
+        # Check if new node is goal
+        if np.array_equal(new_state, self.goal):
+            print("REACHED GOAL")
+            T.add_node(new_node, nn)
+            return (_REACHED, new_node)
 
+        # Check if new node is in collision
+        if self.in_collision(new_state):
+            return (_TRAPPED, new_node)
+        else:
+            T.add_node(new_node, nn)
+            return (_ADVANCED, new_node)
+       
     def fake_in_collision(self, q):
         '''
         We never collide with this function!

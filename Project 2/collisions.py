@@ -341,7 +341,7 @@ class PolygonEnvironment:
         plotter.plot(ws_goal[-1][0], ws_goal[-1][1], 'g.')
         plotter.plot(ws_init[-1][0], ws_init[-1][1], 'ro')
         plotter.plot(ws_init[-1][0], ws_init[-1][1], 'r.')
-        plotter.pause(0.1)
+        plotter.pause(0.001)
 
         if planner is not None:
             Qs, edges = planner.T.get_states_and_edges()
@@ -384,5 +384,5 @@ class PolygonEnvironment:
                             plotter.plot([r_prev[0], r[0]], [r_prev[1], r[1]], 'g')
                     r_prev = r[:]
                 if dynamic_plan:
-                    plotter.pause(0.01)
+                    plotter.pause(0.001)
             self.robot.draw(plan[-1], color='r', show=True)

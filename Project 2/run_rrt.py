@@ -12,11 +12,11 @@ import time
 import vrepWrapper
 from rrt import *
 
-connect = True
-bidirection = True
+connect = False
+bidirection = False
 num_samples=5000
-problem = "vrep"
-#problem = './env0.txt'
+# problem = "vrep"
+problem = 'Project 2/env0.txt'
 
 np.random.seed(0)
 
@@ -47,8 +47,8 @@ elif bidirection:
 else:
     plan = rrt.build_rrt(environment.start, environment.goal)
 
-#if(problem == "vrep"):
-#    environment.vrepReset()
+if(problem == "vrep"):
+   environment.vrepReset()
 
 run_time = time.time() - start_time
 print('plan:', plan)
