@@ -40,12 +40,12 @@ rrt = RRT(num_samples,
           lims = environment.lims,
           connect_prob = 0.05,
           collision_func=environment.test_collisions)
-# if connect:
-#     plan = rrt.build_rrt_connect(environment.start, environment.goal)
-# elif:
-#     plan = rrt.build_bidirectional_rrt_connect(environment.start, environment.goal)
-# else:
-#     plan = rrt.build_rrt(environment.start, environment.goal)
+if connect:
+    plan = rrt.build_rrt_connect(environment.start, environment.goal)
+elif bidirection:
+    plan = rrt.build_bidirectional_rrt_connect(environment.start, environment.goal)
+else:
+    plan = rrt.build_rrt(environment.start, environment.goal)
 
 #if(problem == "vrep"):
 #    environment.vrepReset()
