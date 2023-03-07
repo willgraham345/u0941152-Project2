@@ -14,9 +14,11 @@ from rrt import *
 
 connect = False
 bidirection = False
-num_samples=6000
+num_samples=5000
 # problem = "vrep"
-problem = 'env0.txt'
+problem = 'env1.txt'
+_CONNECT_PROB = 0.5
+
 
 np.random.seed(0)
 
@@ -27,9 +29,9 @@ if(problem == "vrep"):
 else:
     environment = PolygonEnvironment()
     environment.read_env('Project 2/' + problem)
-    step_length=2
+    step_length=.25
 print("Running...")
-print(problem + " with " + str(num_samples) + " samples and step length " + str(step_length))
+print(problem + " with " + str(num_samples) + " samples and step length " + str(step_length) + " and connect prob " + str(_CONNECT_PROB))
 
 
 dims = len(environment.start)
@@ -39,7 +41,7 @@ rrt = RRT(num_samples,
           dims,
           step_length,
           lims = environment.lims,
-          connect_prob = 0.0,
+          connect_prob = _CONNECT_PROB,
           collision_func=environment.test_collisions)
 if connect:
     plan = rrt.build_rrt_connect(environment.start, environment.goal)
@@ -55,7 +57,7 @@ run_time = time.time() - start_time
 print('plan:', plan)
 print('run_time =', run_time)
 
-debugThing = environment.draw_plan(plan, rrt,False, False,True)
+debugThing = environment.draw_plan(plan, rrt,False, True,True)
 
 
 if(problem == "vrep"):

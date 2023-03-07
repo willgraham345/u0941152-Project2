@@ -122,7 +122,7 @@ class RRT(object):
         Returns path to goal or None
         Components to implement:
         - topological space: X
-        - Boundary values: 
+        - Boundary values: lims
         - Collision Detector:
         - Inputs: a set U
         - Incremental Simulator: 
@@ -137,8 +137,8 @@ class RRT(object):
         for i in range(self.K): 
             if _DEBUG:
                 print("Iteration: ", i)
-            s_query = self.sample()
-            (status, new_node) = self.extend(self.T, s_query)
+            q = self.sample() # q = list of sampled coordinates
+            (status, new_node) = self.extend(self.T, q) 
             if _DEBUG:
                 print("Status: ", status)
             if status == _REACHED:
@@ -190,10 +190,14 @@ class RRT(object):
         Returns a configuration of size self.n bounded in self.limits
         '''
         # Return goal with connect_prob probability
-        if self.connect_prob > np.random.rand():
+        prob = np.random.rand()
+        if _DEBUG:
+            print("Sample prob: ", prob)
+        if self.connect_prob >= prob:
             return self.goal
         else:
             return np.random.rand(self.n) * self.ranges + self.limits[:,0]
+    
     def extend(self, T, q):
         '''
         Perform rrt extend operation.
@@ -208,15 +212,23 @@ class RRT(object):
         # Find nearest node
         nn, min_d = T.find_nearest(q)
         # Check to see if epsilon is too large
-        if min_d < self.epsilon:
+        if min_d <= self.epsilon:
             new_state = q
         else:
             # Create new node to test
             new_state = nn.state + self.epsilon * (q - nn.state) / min_d
         
         new_node = TreeNode(new_state, nn)
+
+        if _DEBUG:
+            print("q: ", q)
+            print("New node: ", new_node.state)
+            print("Nearest node: ", nn.state)
+            print("Goal: ", self.goal)
+        
         # Check if new node is goal
-        if np.array_equal(new_state, self.goal):
+
+        if np.array_equal(new_node.state, self.goal):
             print("REACHED GOAL")
             T.add_node(new_node, nn)
             return (_REACHED, new_node)
