@@ -157,6 +157,7 @@ class RRT(object):
         self.goal = np.array(goal)
         self.init = np.array(init)
         self.found_path = False
+        get_new_node_flag = True
 
         # Build tree and search
         self.T = RRTSearchTree(init)
@@ -164,10 +165,12 @@ class RRT(object):
         for i in range(self.K): 
             if _DEBUG:
                 print("Iteration: ", i)
-            q = self.sample() # q = list of sampled coordinates
-            (status, new_node) = self.extend(self.T, q) 
+            if get_new_node_flag:
+                q = self.sample() # q = list of sampled coordinates
+            (status, new_node) = self.extend(self.T, q)
+            get_new_node_flag = self.check_extend_collision(status)
             if _DEBUG:
-                print("Status: ", status)
+                print("New node flag: ", get_new_node_flag)
             if status == _REACHED:
                 path = self.T.get_back_path(new_node)
                 self.found_path = True
@@ -229,7 +232,12 @@ class RRT(object):
             # Create new node to test
             new_state = nn.state + self.epsilon * (q - nn.state) / min_d
         
-        new_node = TreeNode(new_state, nn)
+        # Check if new node is in tree
+        if self.check_if_new_state(new_state): # Returns True if new state is in tree
+            new_node = TreeNode(new_state, nn)
+            return (_TRAPPED, new_node) # 
+        else:
+            new_node = TreeNode(new_state, nn)
 
         if _DEBUG:
             print("q: ", q)
@@ -238,7 +246,6 @@ class RRT(object):
             print("Goal: ", self.goal)
         
         # Check if new node is goal
-
         if np.array_equal(new_node.state, self.goal):
             print("REACHED GOAL")
             T.add_node(new_node, nn)
@@ -250,7 +257,29 @@ class RRT(object):
         else:
             T.add_node(new_node, nn)
             return (_ADVANCED, new_node)
-       
+        
+    def check_extend_collision(self, status):
+        '''
+        Return True/False if the extend function should sample a new node 
+        - Based on collision flag
+        '''
+        if status == _ADVANCED:
+            return False
+        else:
+            return True
+    
+    def check_if_new_state(self, new_state):
+        '''
+        Return True/False if the extend function should sample a new node 
+        - Based on if new node is already in tree
+        '''
+        states, self.edges = self.T.get_states_and_edges()
+
+        if new_state in states:
+            return True
+        else:
+            return False
+    
     def fake_in_collision(self, q):
         '''
         We never collide with this function!
