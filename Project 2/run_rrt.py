@@ -16,9 +16,9 @@ connect = True
 bidirection = False
 num_samples=5000
 # problem = "vrep"
-problem = 'env0.txt'
-_CONNECT_PROB = 0.5
-_STEP_LENGTH_POLYGON = 2
+problem = 'env1.txt'
+_CONNECT_PROB = 0.05
+_STEP_LENGTH_POLYGON = .2
 _STEP_LENGTH_VREP = 0.1
 
 np.random.seed(0)
