@@ -143,6 +143,7 @@ class RRT(object):
                 print("Status: ", status)
             if status == _REACHED:
                 path = self.T.get_back_path(new_node)
+                self.found_path = True
                 return path
         else: 
             print("No path found within ", self.K, " iterations")
@@ -160,10 +161,20 @@ class RRT(object):
         # Build tree and search
         self.T = RRTSearchTree(init)
 
-        # Sample and extend
-        raise NotImplementedError('Expand RRT tree and return plan')
-
-        return None
+        for i in range(self.K): 
+            if _DEBUG:
+                print("Iteration: ", i)
+            q = self.sample() # q = list of sampled coordinates
+            (status, new_node) = self.extend(self.T, q) 
+            if _DEBUG:
+                print("Status: ", status)
+            if status == _REACHED:
+                path = self.T.get_back_path(new_node)
+                self.found_path = True
+                return path
+        else: 
+            print("No path found within ", self.K, " iterations")
+            return None
 
     def build_bidirectional_rrt_connect(self, init, goal):
         '''

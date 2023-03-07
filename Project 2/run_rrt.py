@@ -12,13 +12,14 @@ import time
 import vrepWrapper
 from rrt import *
 
-connect = False
+connect = True
 bidirection = False
 num_samples=5000
 # problem = "vrep"
-problem = 'env1.txt'
+problem = 'env0.txt'
 _CONNECT_PROB = 0.5
-
+_STEP_LENGTH_POLYGON = 2
+_STEP_LENGTH_VREP = 0.1
 
 np.random.seed(0)
 
@@ -29,7 +30,7 @@ if(problem == "vrep"):
 else:
     environment = PolygonEnvironment()
     environment.read_env('Project 2/' + problem)
-    step_length=.25
+    step_length=_STEP_LENGTH_POLYGON
 print("Running...")
 print(problem + " with " + str(num_samples) + " samples and step length " + str(step_length) + " and connect prob " + str(_CONNECT_PROB))
 
@@ -57,7 +58,7 @@ run_time = time.time() - start_time
 print('plan:', plan)
 print('run_time =', run_time)
 
-debugThing = environment.draw_plan(plan, rrt,False, True,True)
+debugThing = environment.draw_plan(plan, rrt,False, False,True)
 
 
 if(problem == "vrep"):
