@@ -8,7 +8,7 @@ import numpy as np
 from collisions import PolygonEnvironment
 import time
 
-_DEBUG = False
+_DEBUG = True
 
 _TRAPPED = 'trapped'
 _ADVANCED = 'advanced'
@@ -200,11 +200,15 @@ class RRT(object):
             if _DEBUG:
                 print("Iteration: ", i)
             q = self.sample() # q = list of sampled coordinates
-            if not self.extend(self.T_a, q)[0] == _TRAPPED:
+            status_a, q_new = self.extend(self.T_a, q)
+            if not status_a == _TRAPPED:
                 if _DEBUG:
                     print("Found path in forward tree")
-                if self.extend(self.T_b, q_new)[0] == _REACHED:
-                    path = self.T.get_back_path(q_new)
+                status_b, q_near = self.extend(self.T_b, q_new.state)
+                if status_b== _REACHED:
+                    raise("Found path in backward tree")
+                    # path = self.T.get_back_path(q_new)
+                    path = 'found'
                     self.found_path = True
                     return path
             size_T_a = len(self.T_a.nodes)
@@ -223,6 +227,8 @@ class RRT(object):
         nn = nearest node to goal from start tree (bidirectional search)
         '''
         # Return goal with connect_prob probability
+
+        ## TODO: This freaks out with my bidirectional methods. Not sure what's happening, it just needs work.
         prob = np.random.rand()
         if _DEBUG:
             print("Sample prob: ", prob)
