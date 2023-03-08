@@ -3,11 +3,10 @@
 Package providing helper classes and functions for performing graph search operations for planning.
 '''
 import numpy as np
-import matplotlib.pyplot as plotter
-from math import pi
+# import matplotlib.pyplot as plotter
+# from math import pi
 from collisions import PolygonEnvironment
 import time
-import random
 
 _DEBUG = False
 
@@ -100,6 +99,11 @@ class RRT(object):
         self.n = num_dimensions
         self.epsilon = step_length
         self.connect_prob = connect_prob
+        self.T = None
+        self.goal = None
+        self.init = None
+        self.T_b = None
+        self.T_a = None
 
         self.in_collision = collision_func
         if collision_func is None:
@@ -144,10 +148,9 @@ class RRT(object):
             if status == _REACHED:
                 path = self.T.get_back_path(new_node)
                 self.found_path = True
-                return path
-        else: 
-            print("No path found within ", self.K, " iterations")
-            return None
+                return path        
+        print("No path found within ", self.K, " iterations")
+        return None
 
     def build_rrt_connect(self, init, goal):
         '''
@@ -167,7 +170,7 @@ class RRT(object):
                 print("Iteration: ", i)
             if get_new_node_flag:
                 q = self.sample() # q = list of sampled coordinates
-            (status, new_node) = self.extend(self.T, q)
+            (status, new_node) = self.extend(self.T, q) # this is what changes
             get_new_node_flag = self.check_extend_collision(status)
             if _DEBUG:
                 print("New node flag: ", get_new_node_flag)
@@ -175,9 +178,8 @@ class RRT(object):
                 path = self.T.get_back_path(new_node)
                 self.found_path = True
                 return path
-        else: 
-            print("No path found within ", self.K, " iterations")
-            return None
+        print("No path found within ", self.K, " iterations")
+        return None
 
     def build_bidirectional_rrt_connect(self, init, goal):
         '''
@@ -188,27 +190,47 @@ class RRT(object):
         self.goal = np.array(goal)
         self.init = np.array(init)
         self.found_path = False
+        get_new_node_flag = True
 
         # Build trees and search
-        self.T_init = RRTSearchTree(init)
-        self.T_goal = RRTSearchTree(goal)
+        self.T_a = RRTSearchTree(init)
+        self.T_b = RRTSearchTree(goal)
 
-        # Sample and extend
-        raise NotImplementedError('Expand RRT trees and return plan')
-
+        for i in range(self.K): 
+            if _DEBUG:
+                print("Iteration: ", i)
+            q = self.sample() # q = list of sampled coordinates
+            if not self.extend(self.T_a, q)[0] == _TRAPPED:
+                if _DEBUG:
+                    print("Found path in forward tree")
+                if self.extend(self.T_b, q_new)[0] == _REACHED:
+                    path = self.T.get_back_path(q_new)
+                    self.found_path = True
+                    return path
+            size_T_a = len(self.T_a.nodes)
+            size_T_b = len(self.T_b.nodes)
+            if size_T_a > size_T_b:
+                self.T_a, self.T_b = self.T_b, self.T_a
+        print("No path found within ", self.K, " iterations")
         return None
 
-    def sample(self):
+        # Sample and extend
+
+    def sample(self,nn_goal=False):
         '''
         Sample a new configuration
         Returns a configuration of size self.n bounded in self.limits
+        nn = nearest node to goal from start tree (bidirectional search)
         '''
         # Return goal with connect_prob probability
         prob = np.random.rand()
         if _DEBUG:
             print("Sample prob: ", prob)
         if self.connect_prob >= prob:
-            return self.goal
+            if nn_goal==None:
+                return self.goal
+            else:
+                return self.goal, nn_goal
         else:
             return np.random.rand(self.n) * self.ranges + self.limits[:,0]
     
@@ -233,7 +255,7 @@ class RRT(object):
             new_state = nn.state + self.epsilon * (q - nn.state) / min_d
         
         # Check if new node is in tree
-        if self.check_if_new_state(new_state): # Returns True if new state is in tree
+        if self.check_if_new_state(new_state, T): # Returns True if new state is in tree
             new_node = TreeNode(new_state, nn)
             return (_TRAPPED, new_node) # 
         else:
@@ -268,12 +290,12 @@ class RRT(object):
         else:
             return True
     
-    def check_if_new_state(self, new_state):
+    def check_if_new_state(self, new_state, T):
         '''
         Return True/False if the extend function should sample a new node 
         - Based on if new node is already in tree
         '''
-        states, self.edges = self.T.get_states_and_edges()
+        states = T.get_states_and_edges()[0]
 
         if new_state in states:
             return True
@@ -284,6 +306,7 @@ class RRT(object):
         '''
         We never collide with this function!
         '''
+        q = None
         return False
 
 def test_rrt_env(num_samples=500, step_length=2, env='./env0.txt', connect=False):
