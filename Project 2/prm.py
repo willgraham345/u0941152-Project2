@@ -8,7 +8,6 @@ import matplotlib.pyplot as plotter
 from collisions import PolygonEnvironment
 import time
 import heapq
-
 _DEBUG = False
 _DEBUG_END = True
 
@@ -128,8 +127,20 @@ class StraightLinePlanner:
         Returns: None / False if edge in collsion
                  Plan / True if edge if free
         '''
-        raise NotImplementedError('Check if straight line edge between neighbours are collision free')
-
+        # Check if goal or start is in collision
+        if _DEBUG:
+            print("start: ", start, " goal: ", goal, "")
+        if self.in_collision(start) or self.in_collision(goal):
+            return None, False
+        
+        length = np.linalg.norm(goal - start)
+        if length < self.epsilon:
+            return None, False
+        else:
+            for i in range(int(length / self.epsilon)):
+                if self.in_collision(start + i * self.epsilon * (goal - start) / length):
+                    return None, False
+            return [start, goal], True
 class RoadMapNode:
     '''
     Nodes to be used in a built RoadMap class
@@ -185,11 +196,21 @@ class RoadMap:
 class PRM:
     def __init__(self, num_samples, local_planner, num_dimensions, lims = None,
                  collision_func = None, radius=2.0, epsilon=0.1):
+        '''
+        num_samples - number of samples to take
+        local_planner - local planner to use for collision checking
+        num_dimensions - number of dimensions of the state space
+        lims - limits of the state space
+        collision_func - function to test if a state is in collision
+        radius - radius of the ball to use for k-nearest neighbors
+        epsilon - step size for local planner
+        '''
         self.local_planner = local_planner
         self.r = radius
         self.N = num_samples
         self.n = num_dimensions
         self.epsilon = epsilon
+        self.start_node = None
 
         self.in_collision = collision_func
         if collision_func is None:
@@ -207,6 +228,7 @@ class PRM:
 
         # Build the roadmap instance
         self.T = RoadMap()
+        self.search_node_list = []
 
     def build_prm(self, reset=False):
         '''
@@ -214,50 +236,197 @@ class PRM:
         '''
         if reset:
             self.T = RoadMap()
-
-        raise NotImplementedError('Sample configurations and build a roadmap')
+        i = 0
+        while len(self.T.nodes) < self.N:
+            i = i+1 # i = iteration
+            q = self.sample()
+            if not self.in_collision(q):
+                valid_neighbors = self.find_valid_neighbors(q, self.T.nodes, self.r)
+                self.T.add_node(RoadMapNode(q), valid_neighbors)
+                # a = 0
+                # for n in valid_neighbors:
+                #     if n.is_neighbor(self.T.nodes[-1]):
+                #         print("Already a neighbor dude")
+                #         print("a = ", a)
+                #         continue
+                #     else:
+                #         n.add_neighbor(self.T.nodes[-1])
+                #         print('added new neighbors')
+                #         a = a+1
+                #         print("a = ", a, "new neighbors added!")
+        for n in self.T.nodes:
+            print(n.neighbors)
+        return
 
     def find_valid_neighbors(self, n_query, samples, r):
         '''
         Find the nodes that are close to n_query and can be attached by the local planner
         returns - list of neighbors reached by the local planner
+        n_query - query state
+        samples - list of samples to check
+        r - radius of the ball to search in
+        goal - goal node
+        goal.state - goal state
         '''
         valid_neighbors = []
-        raise NotImplementedError('Find samples withing radius r of n_query that is collision free')
+        if _DEBUG:
+            print('Finding valid neighbors for', n_query)
+            print('Samples:', samples)
+        
+        for sample_nodes in samples: # iterates through through samples 
+            if _DEBUG:
+                print(sample_nodes.state)
+            if np.linalg.norm(sample_nodes.state - n_query) < r: # if the distance between the sample and the query is less than the radius
+                if _DEBUG:
+                    print('less than radius')
+                if self.local_planner.plan(n_query, sample_nodes.state): # if the local planner can plan a path between the sample and the query
+                    valid_neighbors.append(sample_nodes)
+                    if _DEBUG:
+                        print('valid neighbor')
+        if _DEBUG:
+            print('Valid neighbors:', valid_neighbors)
         return valid_neighbors
     
     def query(self, start, goal):
         '''
         Generate a path from start to goal using the built roadmap
         returns - Path of configurations if in roadmap, None otherwise
+        start - start state
+        goal - goal state
         '''
-        start_node = RoadMapNode(start)
-        goal_node = RoadMapNode(goal)
-
-        raise NotImplementedError('Attach start and goal node to the roadmap self.T')
-
         def is_goal(x):
             '''
             Test if a sample is at the goal
             '''
             return np.linalg.norm(x - goal) < self.epsilon
-
-        # Run search on the roadmap to find a plan
-        start_node.parent = None
-        plan, visited = self.graph_search(start_node, is_goal)
+        self.start_node = self.init_start_and_goal_nodes(start, goal)
+        
+        # C
+        # plan, visited = self.bfs(self.start_node, is_goal)
+        # plan, visited = self.ucs(self.start_node, is_goal)
+        plan, visited = self.a_star(self.start_node, is_goal)
         return plan, visited
+    def init_start_and_goal_nodes(self, start, goal, r = None):
+        # Create start and goal edges and nodes
+        start = RoadMapNode(start)
+        goal = RoadMapNode(goal)
 
+        # Find valid neighbors for start and goal
+        r = self.r
+        while True:
+            start_valid_neighbors = self.find_valid_neighbors(start.state, self.T.nodes, r)
+            goal_valid_neighbors = self.find_valid_neighbors(goal.state, self.T.nodes, r)
+            start_valid_neighbors = self.find_valid_neighbors(start.state, self.T.nodes, r)
+            goal_valid_neighbors = self.find_valid_neighbors(goal.state, self.T.nodes, r)
+            r = r*2
+            if len(start_valid_neighbors) > 0 and len(goal_valid_neighbors) > 0:
+                self.T.add_node(start, start_valid_neighbors)
+                self.T.add_node(goal, goal_valid_neighbors)
+                break
+        print("Start and goal nodes initialized")
+        return start
+    def bfs(self, start, is_goal, K = 5000):
+        '''
+        Breadth first search, working :)
+        '''
+        # Initialize queue
+        queue = []
+        queue.append(start)
+        visited = []
+        i = 0
+        while i < K:
+            i = i + 1
+            node = queue.pop(0)
+            if node not in visited:
+                visited.append(node)
+                if is_goal(node.state):
+                    print("Goal found")
+                    return backpath(node), visited
+                for neighbor in node.neighbors:
+                    if neighbor not in visited:
+                        neighbor.parent = node
+                        queue.append(neighbor)
+        print("No path found")
+        return None, visited
+    def uniform_cost_search(init_state, f, is_goal, actions):
+        '''
+        Perform uniform cost search on a grid map.
 
-    def uniform_cost_search(self, init_node, is_goal):
+        init_state - the intial state on the map
+        f - transition function of the form s_prime = f(s,a)
+        is_goal - function taking as input a state s and returning True if its a goal state
+        actions - set of actions which can be taken by the agent
+        a_cost - the cost of taking action a (default is 1)
+
+        returns - ((path, action_path), visited) or None if no path can be found
+        path - a list of tuples. The first element is the initial state followed by all states
+            traversed until the final goal state
+        action_path - the actions taken to transition from the initial state to goal state
         '''
-        Perform graph search on the roadmap
-        '''
-        cost = 0
         frontier = PriorityQ()
-        frontier.push(init_node, cost)
-        visited = set()
-        #You need to modify your graph search from HW1 to expand neighbors instead of actions
-        raise NotImplementedError('Add in your favorite optimal graph search from HW1')
+        g_cost = 0 # g_cost is the cost to come to a node
+        n0 = SearchNode(init_state, actions, None, None, g_cost)
+        visited_set = {}
+        frontier.push(n0, g_cost)
+        while True:
+            if frontier.__len__() == 0: # If frontier is empty, no path found
+                print("No path found")
+                print("Visited: ", visited_set)
+                return ([[]], visited_set)
+            
+            # Get node lowest cost and its g_cost
+            n_i = frontier.pop() # Gets the frontier node with the lowest cost
+            path, action_path, g_cost = backpath(n_i)
+            if _DEBUG:
+                print("------------------------")
+                print("Node of interest n_i: ", n_i.state, n_i.cost)
+                if g_cost != n_i.cost: # If the g_cost is not the same as the node's cost, update the node's cost
+                    raise ("g_cost is not the same as the node's cost")
+            # adds to visited if not already visited
+            if n_i.state not in visited_set:
+                visited_set = update_visited_set(n_i, visited_set, g_cost)
+                
+                # If goal state, return path and visited set
+                if is_goal(n_i.state): 
+                    path_set = get_path_set(n_i, visited_set)
+                    path, action_path, g_cost = backpath(n_i)
+                    print("Path: ", path)
+                    print("number of nodes in path: ", len(path))
+                    print("Cost: ", g_cost)
+                    return (path_set, visited_set)
+                
+                # If not goal state, add all children to frontier
+                else: 
+                    for a in actions:
+                        if _DEBUG:
+                            print("Action: ", a)
+                            frontier.printStatesandCosts()
+                            print("Visited: ", visited_set)
+                        s_prime = f(n_i.state, a) # Get the state of the child node
+                        frontier = handle_action(s_prime, actions, frontier, visited_set, n_i, a, g_cost)
+
+    def a_star(self, start, is_goal, K = 5000):
+        '''
+        A* search
+        '''
+        # Initialize queue
+        queue = []
+        queue.append(start)
+        visited = []
+        i = 0
+        while i < K:
+            i = i + 1
+            node = queue.pop(0)
+            if node not in visited:
+                visited.append(node)
+                if is_goal(node.state):
+                    print("Goal found")
+                    return backpath(node), visited
+                for neighbor in node.neighbors:
+                    if neighbor not in visited:
+                        neighbor.parent = node
+                        queue.append(neighbor)
+        print("No path found")
         return None, visited
     
     def sample(self):
@@ -265,8 +434,7 @@ class PRM:
         Sample a new configuration
         Returns a configuration of size self.n bounded in self.limits
         '''
-        raise NotImplementedError('Sample a new configuration')
-
+        return np.random.rand(self.n) * self.ranges + self.limits[:,0]
 
 def saveFig(name,close = True):
     plotter.savefig(name + ".png")
