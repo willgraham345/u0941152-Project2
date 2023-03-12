@@ -8,7 +8,7 @@ import numpy as np
 from collisions import PolygonEnvironment
 import time
 
-_DEBUG = True
+_DEBUG = False
 
 _TRAPPED = 'trapped'
 _ADVANCED = 'advanced'
@@ -102,8 +102,7 @@ class RRT(object):
         self.T = None
         self.goal = None
         self.init = None
-        self.T_b = None
-        self.T_a = None
+        self.T_connect = None
 
         self.in_collision = collision_func
         if collision_func is None:
@@ -180,6 +179,7 @@ class RRT(object):
                 return path
         print("No path found within ", self.K, " iterations")
         return None
+        
 
     def build_bidirectional_rrt_connect(self, init, goal):
         '''
@@ -190,37 +190,43 @@ class RRT(object):
         self.goal = np.array(goal)
         self.init = np.array(init)
         self.found_path = False
-        get_new_node_flag = True
 
         # Build trees and search
-        self.T_a = RRTSearchTree(init)
-        self.T_b = RRTSearchTree(goal)
+        self.T = RRTSearchTree(init)
+        self.T_connect = RRTSearchTree(goal)
+        status_b = None
 
         for i in range(self.K): 
             if _DEBUG:
                 print("Iteration: ", i)
             q = self.sample() # q = list of sampled coordinates
-            status_a, q_new = self.extend(self.T_a, q)
+            status_a, q_target = self.extend(self.T, q)
             if not status_a == _TRAPPED:
-                if _DEBUG:
-                    print("Found path in forward tree")
-                status_b, q_near = self.extend(self.T_b, q_new.state)
-                if status_b== _REACHED:
-                    raise("Found path in backward tree")
-                    # path = self.T.get_back_path(q_new)
-                    path = 'found'
+                status_b, q_new = self.extend(self.T_connect, q_target.state, True)
+                while status_b == _ADVANCED:
+                    status_b, q_new = self.extend(self.T_connect, q_target.state, True)
+                if status_b == _REACHED:
+                    path1 = self.T.get_back_path(q_new)
+                    path2 = self.T_connect.get_back_path(q_target)
+                    if (np.isin(self.goal, path1)).any():
+                        path1.reverse()
+                        path = path2 + path1
+                    else:
+                        path2.reverse()
+                        path = path1 + path2
                     self.found_path = True
                     return path
-            size_T_a = len(self.T_a.nodes)
-            size_T_b = len(self.T_b.nodes)
-            if size_T_a > size_T_b:
-                self.T_a, self.T_b = self.T_b, self.T_a
+            size_T = len(self.T.nodes)
+            size_T_connect = len(self.T_connect.nodes)
+            if size_T_connect > size_T:
+                self.T, self.T_connect = self.T_connect, self.T
         print("No path found within ", self.K, " iterations")
+        self.T = self.T
         return None
 
         # Sample and extend
 
-    def sample(self,nn_goal=False):
+    def sample(self):
         '''
         Sample a new configuration
         Returns a configuration of size self.n bounded in self.limits
@@ -228,62 +234,68 @@ class RRT(object):
         '''
         # Return goal with connect_prob probability
 
-        ## TODO: This freaks out with my bidirectional methods. Not sure what's happening, it just needs work.
         prob = np.random.rand()
         if _DEBUG:
             print("Sample prob: ", prob)
         if self.connect_prob >= prob:
-            if nn_goal==None:
-                return self.goal
-            else:
-                return self.goal, nn_goal
+            return self.goal
         else:
             return np.random.rand(self.n) * self.ranges + self.limits[:,0]
     
-    def extend(self, T, q):
+    def extend(self, T_extend, q, q_is_goal_state=False):
         '''
         Perform rrt extend operation.
-        q - new configuration to extend towards
+        q - new configuration state array to extend towards
         returns - tuple of (status, TreeNode)
            status can be: _TRAPPED, _ADVANCED or _REACHED
         variables:
         - nearest node: nn
         - distance to nearest node: min_d
         - RRT tree instance: T
+
+        Steps to algorithm:
+        - Find nearest node to q in T and create that state
+        - Check if new state is in tree, or goal
+        - Check if new state is in collision
+            - Additional functionality of connect added
         '''
-        # Find nearest node
-        nn, min_d = T.find_nearest(q)
-        # Check to see if epsilon is too large
+        if q_is_goal_state:
+            goal_state = q
+        else:
+            goal_state = self.goal
+        
+        # Find nearest node and create new state
+        nn, min_d = T_extend.find_nearest(q)
         if min_d <= self.epsilon:
             new_state = q
         else:
-            # Create new node to test
             new_state = nn.state + self.epsilon * (q - nn.state) / min_d
         
-        # Check if new node is in tree
-        if self.check_if_new_state(new_state, T): # Returns True if new state is in tree
+        # Check if new node is in tree or goal
+        if self.check_if_new_state(new_state, T_extend): # Returns True if new state is in tree
             new_node = TreeNode(new_state, nn)
             return (_TRAPPED, new_node) # 
         else:
             new_node = TreeNode(new_state, nn)
-
+        if np.array_equal(new_node.state, goal_state):
+            print("REACHED GOAL")
+            T_extend.add_node(new_node, nn)
+            return (_REACHED, new_node)
+        
+        
+        # Debug before output
         if _DEBUG:
             print("q: ", q)
             print("New node: ", new_node.state)
             print("Nearest node: ", nn.state)
             print("Goal: ", self.goal)
-        
-        # Check if new node is goal
-        if np.array_equal(new_node.state, self.goal):
-            print("REACHED GOAL")
-            T.add_node(new_node, nn)
-            return (_REACHED, new_node)
 
+        
         # Check if new node is in collision
         if self.in_collision(new_state):
             return (_TRAPPED, new_node)
         else:
-            T.add_node(new_node, nn)
+            T_extend.add_node(new_node, nn)
             return (_ADVANCED, new_node)
         
     def check_extend_collision(self, status):

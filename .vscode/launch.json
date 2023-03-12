@@ -6,10 +6,20 @@
     "configurations": 
     [
         {
-            "name":"run_rrt.py",
+            "name":"RRT_run.py",
             "type":"python",
             "request":"launch",
             "program":"${workspaceFolder}/Project 2/run_rrt.py",
+            "console":"integratedTerminal",
+            "justMyCode": true,
+            "clearBeforeRun": true,
+            "saveBeforeRun": true,
+        }
+        {
+            "name":"PRM_run.py",
+            "type":"python",
+            "request":"launch",
+            "program":"${workspaceFolder}/Project 2/run_prm.py",
             "console":"integratedTerminal",
             "justMyCode": true,
             "clearBeforeRun": true,
