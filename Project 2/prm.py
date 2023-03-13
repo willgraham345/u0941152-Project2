@@ -8,6 +8,7 @@ import matplotlib.pyplot as plotter
 from collisions import PolygonEnvironment
 import time
 import heapq
+
 _DEBUG = False
 _DEBUG_END = True
 
@@ -123,6 +124,8 @@ class StraightLinePlanner:
 
     def plan(self, start, goal):
         '''
+        start - start state
+        goal - goal state
         Check if edge is collision free, taking epsilon steps towards the goal
         Returns: None / False if edge in collsion
                  Plan / True if edge if free
@@ -134,11 +137,14 @@ class StraightLinePlanner:
             return None, False
         
         length = np.linalg.norm(goal - start)
+        if _DEBUG:
+            print("length: ", length)
         if length < self.epsilon:
-            return None, False
+            return [start, goal], True
         else:
             for i in range(int(length / self.epsilon)):
-                if self.in_collision(start + i * self.epsilon * (goal - start) / length):
+                state_to_check = start + i * self.epsilon * (goal - start) / length
+                if self.in_collision(state_to_check):
                     return None, False
             return [start, goal], True
 class RoadMapNode:
@@ -192,6 +198,23 @@ class RoadMap:
     def get_states_and_edges(self):
         states = np.array([n.state for n in self.nodes])
         return (states, self.edges)
+    
+    def test_state(self, state, tolerance=0.01):
+        '''
+        Test if a state is in collision
+        '''
+        in_tree = False
+        for n in self.nodes:
+            distance = np.linalg.norm(n.state - state)
+            if distance<= tolerance:
+                in_tree = True
+                node = n
+                break
+        if in_tree == False:
+            return False
+        else:
+            return node
+        
 
 class PRM:
     def __init__(self, num_samples, local_planner, num_dimensions, lims = None,
@@ -243,19 +266,9 @@ class PRM:
             if not self.in_collision(q):
                 valid_neighbors = self.find_valid_neighbors(q, self.T.nodes, self.r)
                 self.T.add_node(RoadMapNode(q), valid_neighbors)
-                # a = 0
-                # for n in valid_neighbors:
-                #     if n.is_neighbor(self.T.nodes[-1]):
-                #         print("Already a neighbor dude")
-                #         print("a = ", a)
-                #         continue
-                #     else:
-                #         n.add_neighbor(self.T.nodes[-1])
-                #         print('added new neighbors')
-                #         a = a+1
-                #         print("a = ", a, "new neighbors added!")
-        for n in self.T.nodes:
-            print(n.neighbors)
+        if _DEBUG:
+            for n in self.T.nodes:
+                print(n.neighbors)
         return
 
     def find_valid_neighbors(self, n_query, samples, r):
@@ -273,15 +286,20 @@ class PRM:
             print('Finding valid neighbors for', n_query)
             print('Samples:', samples)
         
-        for sample_nodes in samples: # iterates through through samples 
+        for sample_node in samples: # iterates through through samples 
             if _DEBUG:
-                print(sample_nodes.state)
-            if np.linalg.norm(sample_nodes.state - n_query) < r: # if the distance between the sample and the query is less than the radius
+                print(sample_node.state)
+            distance = np.linalg.norm(sample_node.state - n_query) # calculates the distance between the sample and the query
+            if distance < r: # if the distance between the sample and the query is less than the radius
                 if _DEBUG:
                     print('less than radius')
-                if self.local_planner.plan(n_query, sample_nodes.state): # if the local planner can plan a path between the sample and the query
-                    valid_neighbors.append(sample_nodes)
+                plan, is_a_path= self.local_planner.plan(n_query, sample_node.state) # if the local planner can plan a path between the sample and the query
+                if is_a_path:
+                    valid_neighbors.append(sample_node)
                     if _DEBUG:
+                        print('valid_neighbors:', valid_neighbors)
+                        print("is_a_path", is_a_path)
+                        print("plan", plan)
                         print('valid neighbor')
         if _DEBUG:
             print('Valid neighbors:', valid_neighbors)
@@ -300,29 +318,39 @@ class PRM:
             '''
             return np.linalg.norm(x - goal) < self.epsilon
         self.start_node = self.init_start_and_goal_nodes(start, goal)
-        
-        # C
-        # plan, visited = self.bfs(self.start_node, is_goal)
-        # plan, visited = self.ucs(self.start_node, is_goal)
-        plan, visited = self.a_star(self.start_node, is_goal)
+        plan, visited = self.bfs(self.start_node, is_goal)
         return plan, visited
     def init_start_and_goal_nodes(self, start, goal, r = None):
-        # Create start and goal edges and nodes
-        start = RoadMapNode(start)
-        goal = RoadMapNode(goal)
-
-        # Find valid neighbors for start and goal
+        # Test if start and goal are nodes or states
+        if r is None:
+            r = self.r
+        
+        # test if start and goal are nodes or states
+        start_node = self.T.test_state(start)
+        if start_node:
+            start = start_node
+            pass
+        else:
+            start = RoadMapNode(start)
+            while r < 10*self.r:
+                start_valid_neighbors = self.find_valid_neighbors(start.state, self.T.nodes, r)
+                r = r*2
+                if len(start_valid_neighbors) > 0:
+                    self.T.add_node(start, start_valid_neighbors)
+                    break
         r = self.r
-        while True:
-            start_valid_neighbors = self.find_valid_neighbors(start.state, self.T.nodes, r)
-            goal_valid_neighbors = self.find_valid_neighbors(goal.state, self.T.nodes, r)
-            start_valid_neighbors = self.find_valid_neighbors(start.state, self.T.nodes, r)
-            goal_valid_neighbors = self.find_valid_neighbors(goal.state, self.T.nodes, r)
-            r = r*2
-            if len(start_valid_neighbors) > 0 and len(goal_valid_neighbors) > 0:
-                self.T.add_node(start, start_valid_neighbors)
-                self.T.add_node(goal, goal_valid_neighbors)
-                break
+        goal_node = self.T.test_state(goal)
+        if goal_node:
+            pass
+        else:
+            print("goal is not a node")
+            goal = RoadMapNode(goal)
+            while r < 100:
+                goal_valid_neighbors = self.find_valid_neighbors(goal.state, self.T.nodes, r)
+                r = r*2
+                if len(goal_valid_neighbors) > 0:
+                    self.T.add_node(goal, goal_valid_neighbors)
+                    break
         print("Start and goal nodes initialized")
         return start
     def bfs(self, start, is_goal, K = 5000):
@@ -434,6 +462,7 @@ class PRM:
         Sample a new configuration
         Returns a configuration of size self.n bounded in self.limits
         '''
+        np.random.seed()
         return np.random.rand(self.n) * self.ranges + self.limits[:,0]
 
 def saveFig(name,close = True):
