@@ -7,6 +7,7 @@ import matplotlib.pyplot as plotter
 from math import hypot, cos, sin, pi
 
 _DEBUG = False
+_DEBUG_END = False
 _BOUNDS = 'Bounds:'
 _GOAL = 'Goal:'
 _OBSTACLE = 'Obstacle:'
@@ -201,20 +202,20 @@ class PolygonEnvironment:
 
         # Test collision with all polygons
         for poly_num, polygon in enumerate(self.polygons):
-            if _DEBUG:
+            if _DEBUG_END:
                 print('polygon', polygon)
             for link_num, link in enumerate(robot_links):
                 if self.point_in_polygon(link[1], polygon):
                     return True
-                if _DEBUG:
+                if _DEBUG_END:
                     print('Testing link', link_num)
                 for i in range(len(polygon)):
-                    if _DEBUG:
+                    if _DEBUG_END:
                         print('\nTestint pt', i, 'on polygon', poly_num)
                     prev_pt = polygon[i-1]
                     pt = polygon[i]
                     if self.line_line_collision(link, (prev_pt, pt)):
-                        if _DEBUG:
+                        if _DEBUG_END:
                             print('Collision between', link, (prev_pt, pt))
                         return True
         return False
