@@ -84,7 +84,7 @@ print(time.time() - start )
 
 
 #
-time.sleep(10)
+# time.sleep(10)
 #
 simulator.vrepStop()
 print("Simulation complete.")

@@ -201,7 +201,8 @@ class RRT(object):
                 print("Iteration: ", i)
             q = self.sample() # q = list of sampled coordinates
             status_a, q_target = self.extend(self.T, q)
-            if not status_a == _TRAPPED:
+            # if not status_a == _TRAPPED:
+            if status_a == _ADVANCED:
                 status_b, q_new = self.extend(self.T_connect, q_target.state, True)
                 while status_b == _ADVANCED:
                     status_b, q_new = self.extend(self.T_connect, q_target.state, True)
@@ -274,7 +275,7 @@ class RRT(object):
         # Check if new node is in tree or goal
         if self.check_if_new_state(new_state, T_extend): # Returns True if new state is in tree
             new_node = TreeNode(new_state, nn)
-            return (_TRAPPED, new_node) # 
+            return (_TRAPPED, new_node) 
         else:
             new_node = TreeNode(new_state, nn)
         if np.array_equal(new_node.state, goal_state):
