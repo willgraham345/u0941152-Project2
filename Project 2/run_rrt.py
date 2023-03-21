@@ -12,11 +12,12 @@ import time
 import vrepWrapper
 from rrt import *
 
+#Config parameters
 connect = False
 bidirection = True
 num_samples=5000
-# problem = "vrep"
-problem = 'vrep'
+problem = 'env0.txt'
+# i.e. problem = 'env1_99_0_0.txt' for the first environment with a user-defined configuration
 _CONNECT_PROB = 0.05
 _STEP_LENGTH_POLYGON = 2
 _STEP_LENGTH_VREP = 0.1
@@ -31,6 +32,7 @@ else:
     environment = PolygonEnvironment()
     environment.read_env('Project 2/' + problem)
     step_length=_STEP_LENGTH_POLYGON
+#output to screen to show program is running.
 print("Running...")
 print(problem + " with " + str(num_samples) + " samples and step length " + str(step_length) + " and connect prob " + str(_CONNECT_PROB))
 
@@ -59,7 +61,6 @@ print('plan:', plan)
 print('run_time =', run_time)
 
 debugThing = environment.draw_plan(plan, rrt,False, False,True)
-
 
 if(problem == "vrep"):
     time.sleep(10)
